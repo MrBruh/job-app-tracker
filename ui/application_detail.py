@@ -166,6 +166,9 @@ class ApplicationDetailView(QWidget):
         self.qa_table.verticalHeader().setVisible(False)
         self.qa_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.qa_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        # Wrap long questions/answers; let each row grow to fit the wrapped text.
+        self.qa_table.setWordWrap(True)
+        self.qa_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.qa_table.itemChanged.connect(self._qa_item_changed)
         self.qa_stack.addWidget(self.qa_table)
 

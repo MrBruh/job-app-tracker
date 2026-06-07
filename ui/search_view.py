@@ -41,6 +41,9 @@ class SearchView(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        # Wrap long questions/answers; let each row grow to fit the wrapped text.
+        self.table.setWordWrap(True)
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.cellActivated.connect(lambda _r, _c: self._copy())
         self.stack.addWidget(self.table)
 
@@ -87,8 +90,7 @@ class SearchView(QWidget):
             q = QTableWidgetItem(r["question"])
             q.setData(Qt.UserRole, r["answer"] or "")     # stash full answer for copy
             self.table.setItem(i, 0, q)
-            preview = (r["answer"] or "").replace("\n", " ")
-            self.table.setItem(i, 1, QTableWidgetItem(preview))
+            self.table.setItem(i, 1, QTableWidgetItem(r["answer"] or ""))
             self.table.setItem(i, 2, QTableWidgetItem(f'{r["company"]} · {r["role"]}'))
         self.stack.setCurrentIndex(0)
         self.copy_btn.setEnabled(True)
