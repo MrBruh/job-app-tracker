@@ -32,50 +32,50 @@ the repo). To start from a clean slate, close the app and delete that file.
       there.
 
 ## 3. Add Q&A during entry
-- [ ] Click **+ Add**, fill Company + Role, then click **+ Add question** right
+- [y] Click **+ Add**, fill Company + Role, then click **+ Add question** right
       away (before a separate Save). It should save the application and open the
       Q&A dialog in one step (no disabled button).
-- [ ] Add a question + answer → **Save** → it appears in the Q&A list, which takes
-      up most of the screen.
-- [ ] Select it → **Edit** (or double-click) → change the answer → **Save** →
-      updated.
+- [n] Add a question + answer → **Save** → it appears in the Q&A list, which takes
+      up most of the screen. [Takes up too much of the screen, Question can be a little shorter and Application should be a bit wider to make it more clear]
+- [n] Select it → **Edit** (or double-click) → change the answer → **Save** →
+      updated. [Editting should be done in place rather than in a new popup]
 
 ## 4. Job posting link
 - [y] Set Job URL to `linkedin.com/jobs/123` (no `https://`), **Save**.
 - [y] **Open posting** opens your browser with `https://` prepended.
-- [ ] Clear the URL → the **Open posting** button disables.
+- [y] Clear the URL → the **Open posting** button disables.
 
 ## 5. Stage changes and history
-- [ ] Add a second application. Change its **Stage** dropdown to "Interview",
+- [y] Add a second application. Change its **Stage** dropdown to "Interview",
       **Save** → status "Saved", and the list reflects the new stage.
-- [ ] (Each stage change is recorded as history for the future drop-off chart.)
+- [n] (Each stage change is recorded as history for the future drop-off chart.) [It probably is, but I don't have a way to check in-app]
 
 ## 6. List sort and filter
-- [ ] Click the **Stage** column header → rows sort by pipeline order
+- [y] Click the **Stage** column header → rows sort by pipeline order
       (Saved -> Applied -> Interview -> ...), not alphabetically.
-- [ ] Click the **Applied** column header → rows sort by date.
-- [ ] Use the **Stage** filter dropdown → only matching applications show.
-- [ ] After sorting/filtering, double-click a row → it opens the **correct**
+- [y] Click the **Applied** column header → rows sort by date.
+- [y] Use the **Stage** filter dropdown → only matching applications show.
+- [y] After sorting/filtering, double-click a row → it opens the **correct**
       application (not a wrong one).
 
 ## 7. Global Q&A search (the reuse engine)
-- [ ] Open the **Search** tab → the box is focused and shows the hint
+- [y] Open the **Search** tab → the box is focused and shows the hint
       ("Search every answer you've written...").
-- [ ] Type a word from an answer (e.g. "work") → matching Q&A appear, each
+- [y] Type a word from an answer (e.g. "work") → matching Q&A appear, each
       showing its source application (Company - Role).
-- [ ] Select a result → **Copy answer** → button flips to "Copied ✓"; paste
+- [y] Select a result → **Copy answer** → button flips to "Copied ✓"; paste
       elsewhere to confirm the clipboard.
-- [ ] Type gibberish → "No answers match '...'."
-- [ ] Edit an answer in the detail view, return to Search, search for it → the
-      result reflects the edit (no stale results).
+- [y] Type gibberish → "No answers match '...'."
+- [n] Edit an answer in the detail view, return to Search, search for it → the
+      result reflects the edit (no stale results). [There is no detail view]
 
 ## 8. Delete
-- [ ] Open an application → **Delete** → a confirmation dialog appears.
-- [ ] Confirm → the application is gone, and its Q&A and stage history go with it.
+- [y] Open an application → **Delete** → a confirmation dialog appears.
+- [y] Confirm → the application is gone, and its Q&A and stage history go with it.
 
 ## 9. Export / backup
-- [ ] **File -> Export database...** → choose a location → status "Exported to ...".
-- [ ] Confirm the `.db` file exists at that path.
+- [y] **File -> Export database...** → choose a location → status "Exported to ...".
+- [y] Confirm the `.db` file exists at that path.
 
 ## 10. Persistence
 - [y] Close the app completely and reopen → all your data is still there.
