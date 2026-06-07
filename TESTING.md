@@ -19,16 +19,16 @@ the repo). To start from a clean slate, close the app and delete that file.
 ---
 
 ## 1. First launch
-- [ ] Window opens (~1000x700) with two tabs: **Applications** and **Search**.
-- [ ] Applications shows the **empty state**: "No applications yet" plus a
+- [y] Window opens (~1000x700) with two tabs: **Applications** and **Search**.
+- [y] Applications shows the **empty state**: "No applications yet" plus a
       prominent "+ Add your first application" button (not a blank grid).
 
 ## 2. Add an application
-- [ ] Click **+ Add**. The detail form opens, defaulting to the **Applied** stage
-      with **today's date** checked.
-- [ ] Click **Save** with Company/Role blank → it warns they are required.
-- [ ] Fill Company + Role → **Save** → the status bar shows "Saved".
-- [ ] Click **← Applications** (or press **Esc**) → back to the list; your row is
+- [n] Click **+ Add**. The detail form opens, defaulting to the **Applied** stage
+      with **today's date** checked. [defaults to saved, saved should not exist]
+- [n] Click **Save** with Company/Role blank → it warns they are required. [There should not be a pop-up, instead have some text somewhere in the map app indicating this]
+- [y] Fill Company + Role → **Save** → the status bar shows "Saved".
+- [y] Click **← Applications** (or press **Esc**) → back to the list; your row is
       there.
 
 ## 3. Add Q&A during entry
@@ -41,8 +41,8 @@ the repo). To start from a clean slate, close the app and delete that file.
       updated.
 
 ## 4. Job posting link
-- [ ] Set Job URL to `linkedin.com/jobs/123` (no `https://`), **Save**.
-- [ ] **Open posting** opens your browser with `https://` prepended.
+- [y] Set Job URL to `linkedin.com/jobs/123` (no `https://`), **Save**.
+- [y] **Open posting** opens your browser with `https://` prepended.
 - [ ] Clear the URL → the **Open posting** button disables.
 
 ## 5. Stage changes and history
@@ -78,11 +78,11 @@ the repo). To start from a clean slate, close the app and delete that file.
 - [ ] Confirm the `.db` file exists at that path.
 
 ## 10. Persistence
-- [ ] Close the app completely and reopen → all your data is still there.
-- [ ] The stage dropdown lists the 11 default stages (Saved through
+- [y] Close the app completely and reopen → all your data is still there.
+- [y] The stage dropdown lists the 11 default stages (Saved through
       Ghosted/No-response).
 
 ---
 
 If anything does not match, note the step number and what you saw. Bugs get fixed
-on a branch and land via a pull request to `main` (see `CLAUDE.local.md`).
+on a branch and land via a pull request to `main`
