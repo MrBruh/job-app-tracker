@@ -19,13 +19,12 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 DEFAULT_DB_PATH = Path.home() / ".job-app-tracker" / "jobtracker.db"
 
 # Seeded pipeline stages, research-backed defaults: (name, sort_order, kind).
 DEFAULT_STAGES = [
-    ("Saved", 10, "active"),
     ("Applied", 20, "active"),
     ("Online Assessment", 30, "active"),
     ("Phone/Recruiter Screen", 40, "active"),
@@ -117,7 +116,44 @@ def migrate(conn: sqlite3.Connection) -> None:
         conn.executescript(_SCHEMA_V1)
         conn.execute("PRAGMA user_version = 1")
         conn.commit()
-    # Future migrations: ``if version < 2: ...`` then bump user_version to 2.
+    if version < 2:
+        # v2 retires the "Saved" stage. Anything still on it is reassigned to
+        # "Applied" before the row is deleted (foreign keys are ON, so the
+        # references in application/stage_event must be repointed first).
+        _migrate_v2_remove_saved(conn)
+        conn.execute("PRAGMA user_version = 2")
+        conn.commit()
+
+
+def _migrate_v2_remove_saved(conn: sqlite3.Connection) -> None:
+    """Reassign any application/stage_event on 'Saved' to 'Applied', then drop
+    'Saved'. A no-op when 'Saved' is absent (e.g. a fresh DB seeded without it)."""
+    saved = conn.execute("SELECT id FROM stage WHERE name = 'Saved'").fetchone()
+    if saved is None:
+        return
+    saved_id = saved["id"]
+    applied = conn.execute("SELECT id FROM stage WHERE name = 'Applied'").fetchone()
+    if applied is not None:
+        target_id = applied["id"]
+    else:
+        # Defensive fallback: if 'Applied' is missing, use the lowest remaining
+        # stage so existing rows keep a valid stage reference.
+        row = conn.execute(
+            "SELECT id FROM stage WHERE id != ? ORDER BY sort_order LIMIT 1",
+            (saved_id,),
+        ).fetchone()
+        if row is None:
+            return
+        target_id = row["id"]
+    conn.execute(
+        "UPDATE application SET current_stage_id = ? WHERE current_stage_id = ?",
+        (target_id, saved_id),
+    )
+    conn.execute(
+        "UPDATE stage_event SET stage_id = ? WHERE stage_id = ?",
+        (target_id, saved_id),
+    )
+    conn.execute("DELETE FROM stage WHERE id = ?", (saved_id,))
 
 
 def seed_stages(conn: sqlite3.Connection) -> None:
@@ -227,6 +263,21 @@ def list_stage_events(conn, app_id):
     """An application's stage history in chronological order (for a future chart)."""
     return conn.execute(
         "SELECT * FROM stage_event WHERE application_id=? ORDER BY changed_at, id",
+        (app_id,),
+    ).fetchall()
+
+
+def list_stage_history(conn, app_id):
+    """An application's stage changes joined with stage names, newest first.
+
+    Read-only view for the detail screen; each row carries ``stage_name`` and
+    ``stage_kind`` alongside ``changed_at`` and ``note``.
+    """
+    return conn.execute(
+        """SELECT e.changed_at, e.note, s.name AS stage_name, s.kind AS stage_kind
+             FROM stage_event e JOIN stage s ON s.id = e.stage_id
+            WHERE e.application_id = ?
+            ORDER BY e.changed_at DESC, e.id DESC""",
         (app_id,),
     ).fetchall()
 
