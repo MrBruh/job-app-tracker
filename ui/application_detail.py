@@ -1,19 +1,29 @@
-"""Application detail / editor: a compact metadata header above a dominant Q&A
-section (reuse is goal #1). Stage changes route through db.set_stage so history is
-always recorded; the date field is gated by a 'Applied' checkbox so 'Saved' apps
-keep a NULL date."""
+"""Application detail / editor: a compact metadata header and a read-only stage
+history above the Q&A section (reuse is goal #1). Stage changes route through
+db.set_stage so history is always recorded; the date field is gated by an 'Applied'
+checkbox so an application you haven't applied to keeps a NULL date. Q&A entries are
+edited in place, directly in the table cells."""
 
 import webbrowser
+from datetime import datetime
 
 from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
-    QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox,
-    QPlainTextEdit, QPushButton, QStackedWidget, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
+    QDialogButtonBox, QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+    QListWidget, QMessageBox, QPlainTextEdit, QPushButton, QStackedWidget,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 import db
+
+
+def _fmt_ts(s):
+    """Format a stored UTC ISO timestamp as a short local 'YYYY-MM-DD HH:MM'."""
+    try:
+        return datetime.fromisoformat(s).astimezone().strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return s or ""
 
 
 class QADialog(QDialog):
@@ -55,6 +65,7 @@ class ApplicationDetailView(QWidget):
         self.status = status
         self.app_id = None          # None == creating a new application
         self._loaded_stage_id = None
+        self._populating_qa = False  # guard so rebuilds don't fire itemChanged
         self._build()
 
     def _build(self):
@@ -76,6 +87,13 @@ class ApplicationDetailView(QWidget):
         top.addWidget(self.delete_btn)
         layout.addLayout(top)
 
+        # Inline validation message (shown in place instead of a pop-up).
+        self.error_lbl = QLabel()
+        self.error_lbl.setStyleSheet("color: #b03a3a;")
+        self.error_lbl.setWordWrap(True)
+        self.error_lbl.hide()
+        layout.addWidget(self.error_lbl)
+
         # Compact metadata form.
         form = QFormLayout()
         self.company = QLineEdit()
@@ -87,6 +105,7 @@ class ApplicationDetailView(QWidget):
         self.job_url.textChanged.connect(self._update_open_btn)
         self.location = QLineEdit()
         self.source = QLineEdit()
+        self.source.setPlaceholderText("LinkedIn, referral, company site…")
         self.notes = QPlainTextEdit()
         self.notes.setFixedHeight(54)
 
@@ -110,7 +129,18 @@ class ApplicationDetailView(QWidget):
         form.addRow("Notes", self.notes)
         layout.addLayout(form)
 
-        # Q&A section (dominant — gets the stretch).
+        # Read-only stage history (the recorded data behind the future drop-off
+        # chart). Compact so the Q&A section still gets the room it needs.
+        hist_header = QLabel("Stage history")
+        hist_header.setStyleSheet("font-weight: bold;")
+        layout.addWidget(hist_header)
+        self.history = QListWidget()
+        self.history.setMaximumHeight(84)
+        self.history.setSelectionMode(QAbstractItemView.NoSelection)
+        self.history.setFocusPolicy(Qt.NoFocus)
+        layout.addWidget(self.history)
+
+        # Q&A section (gets the remaining stretch).
         qa_header = QHBoxLayout()
         qa_title = QLabel("Questions & Answers")
         qa_title.setStyleSheet("font-weight: bold;")
@@ -126,13 +156,17 @@ class ApplicationDetailView(QWidget):
 
         self.qa_table = QTableWidget(0, 2)
         self.qa_table.setHorizontalHeaderLabels(["Question", "Answer"])
-        self.qa_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        # Edit in place: double-click (or F2, or the Edit button) edits the cell
+        # directly; _qa_item_changed writes the row back to the DB.
+        self.qa_table.setEditTriggers(
+            QTableWidget.DoubleClicked | QTableWidget.EditKeyPressed
+        )
         self.qa_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.qa_table.setSelectionMode(QTableWidget.SingleSelection)
         self.qa_table.verticalHeader().setVisible(False)
         self.qa_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.qa_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.qa_table.cellActivated.connect(lambda r, _c: self._edit_qa(r))
+        self.qa_table.itemChanged.connect(self._qa_item_changed)
         self.qa_stack.addWidget(self.qa_table)
 
         qa_empty = QWidget()
@@ -175,9 +209,12 @@ class ApplicationDetailView(QWidget):
             self.location.clear()
             self.source.clear()
             self.notes.clear()
-            self.stage.setCurrentIndex(0)
+            # Default to "Applied" + today: the common case is tracking an
+            # application you've already submitted.
+            applied_idx = self.stage.findText("Applied")
+            self.stage.setCurrentIndex(applied_idx if applied_idx >= 0 else 0)
             self._loaded_stage_id = self.stage.currentData()
-            self.applied_check.setChecked(False)
+            self.applied_check.setChecked(True)
             self.date.setDate(QDate.currentDate())
             self.delete_btn.setEnabled(False)
         else:
@@ -199,13 +236,34 @@ class ApplicationDetailView(QWidget):
                 self.date.setDate(QDate.currentDate())
             self.delete_btn.setEnabled(True)
 
+        self._clear_error()
         self.date_enabled(self.applied_check.isChecked())
         self._update_open_btn()
-        self._set_qa_enabled()
         self._refresh_qa()
+        self._refresh_history()
 
     def date_enabled(self, on):
         self.date.setEnabled(on)
+
+    def _show_error(self, text):
+        self.error_lbl.setText(text)
+        self.error_lbl.show()
+
+    def _clear_error(self):
+        self.error_lbl.clear()
+        self.error_lbl.hide()
+
+    def _refresh_history(self):
+        self.history.clear()
+        if self.app_id is None:
+            self.history.addItem("Save the application to start its stage history.")
+            return
+        rows = db.list_stage_history(self.conn, self.app_id)
+        if not rows:
+            self.history.addItem("No stage changes recorded yet.")
+            return
+        for r in rows:
+            self.history.addItem(f"{_fmt_ts(r['changed_at'])}   →   {r['stage_name']}")
 
     # ── save / delete / posting ──────────────────────────────────────────
 
@@ -213,8 +271,9 @@ class ApplicationDetailView(QWidget):
         company = self.company.text().strip()
         role = self.role.text().strip()
         if not company or not role:
-            QMessageBox.warning(self, "Required", "Company and role are required.")
+            self._show_error("Company and role are required.")
             return
+        self._clear_error()
         stage_id = self.stage.currentData()
         date_applied = (
             self.date.date().toString("yyyy-MM-dd")
@@ -233,7 +292,6 @@ class ApplicationDetailView(QWidget):
             )
             self._loaded_stage_id = stage_id
             self.delete_btn.setEnabled(True)
-            self._set_qa_enabled()
             self._refresh_qa()
         else:
             db.update_application(
@@ -245,6 +303,7 @@ class ApplicationDetailView(QWidget):
                 db.set_stage(self.conn, self.app_id, stage_id)
                 self._loaded_stage_id = stage_id
         self.status("Saved")
+        self._refresh_history()
 
     def _delete(self):
         if self.app_id is None:
@@ -274,17 +333,12 @@ class ApplicationDetailView(QWidget):
 
     # ── Q&A ──────────────────────────────────────────────────────────────
 
-    def _set_qa_enabled(self):
-        on = self.app_id is not None
-        for b in (self.add_qa_btn, self.first_qa_btn, self.edit_qa_btn,
-                  self.copy_qa_btn, self.del_qa_btn):
-            b.setEnabled(on)
-
     def _refresh_qa(self):
         if self.app_id is None:
             self.qa_stack.setCurrentIndex(1)
             return
         rows = db.list_qa(self.conn, self.app_id)
+        self._populating_qa = True          # suppress itemChanged during rebuild
         self.qa_table.setRowCount(0)
         for r in rows:
             i = self.qa_table.rowCount()
@@ -292,9 +346,30 @@ class ApplicationDetailView(QWidget):
             q = QTableWidgetItem(r["question"])
             q.setData(Qt.UserRole, r["id"])
             self.qa_table.setItem(i, 0, q)
-            preview = (r["answer"] or "").replace("\n", " ")
-            self.qa_table.setItem(i, 1, QTableWidgetItem(preview))
+            # Store the full answer (not a one-line preview) so inline editing
+            # starts from the real text; the single-row cell shows it truncated.
+            self.qa_table.setItem(i, 1, QTableWidgetItem(r["answer"] or ""))
+        self._populating_qa = False
         self.qa_stack.setCurrentIndex(0 if rows else 1)
+
+    def _qa_item_changed(self, item):
+        """Persist an in-place cell edit back to the DB (question or answer)."""
+        if self._populating_qa or self.app_id is None:
+            return
+        row = item.row()
+        id_item = self.qa_table.item(row, 0)
+        qa_id = id_item.data(Qt.UserRole) if id_item else None
+        if qa_id is None:
+            return
+        question = (self.qa_table.item(row, 0).text() or "").strip()
+        answer_item = self.qa_table.item(row, 1)
+        answer = (answer_item.text().strip() or None) if answer_item else None
+        if not question:
+            self.status("Question can't be empty")
+            self._refresh_qa()              # revert the blank edit
+            return
+        db.update_qa(self.conn, qa_id, question, answer)
+        self.status("Question updated")
 
     def _selected_qa_id(self):
         row = self.qa_table.currentRow()
@@ -311,8 +386,12 @@ class ApplicationDetailView(QWidget):
 
     def _add_qa(self):
         if self.app_id is None:
-            self.status("Save the application first, then add Q&A")
-            return
+            # Auto-create the application from the form so Q&A can be added during
+            # initial entry. _save() warns and leaves app_id None if company/role
+            # are still blank.
+            self._save()
+            if self.app_id is None:
+                return
         dlg = QADialog(self)
         if dlg.exec() == QDialog.Accepted:
             q, a = dlg.values()
@@ -320,24 +399,14 @@ class ApplicationDetailView(QWidget):
             self.status("Question added")
             self._refresh_qa()
 
-    def _edit_qa(self, row=None):
-        if row is not None:
-            item = self.qa_table.item(row, 0)
-            qa_id = item.data(Qt.UserRole) if item else None
-        else:
-            qa_id = self._selected_qa_id()
-        if qa_id is None:
+    def _edit_qa(self):
+        """Start in-place editing of the selected row (the Edit button); double-
+        click or F2 on a cell does the same directly."""
+        row = self.qa_table.currentRow()
+        if row < 0:
             self.status("Select a question to edit")
             return
-        rec = self._qa_record(qa_id)
-        if rec is None:
-            return
-        dlg = QADialog(self, rec["question"], rec["answer"] or "")
-        if dlg.exec() == QDialog.Accepted:
-            q, a = dlg.values()
-            db.update_qa(self.conn, qa_id, q, a)
-            self.status("Question updated")
-            self._refresh_qa()
+        self.qa_table.editItem(self.qa_table.item(row, 0))
 
     def _copy_qa(self):
         qa_id = self._selected_qa_id()

@@ -104,11 +104,13 @@ WHERE q.question LIKE :term OR q.answer LIKE :term
 ORDER BY q.updated_at DESC;     -- :term is '%text%'
 ```
 
-**Seeded stages** (all editable later): Saved, Applied, Online Assessment,
+**Seeded stages** (all editable later): Applied, Online Assessment,
 Phone/Recruiter Screen, Interview, Final/Onsite, Offer (kind=active), Accepted
 (terminal_positive), Rejected, Withdrawn, Ghosted/No-response
-(terminal_negative). Recording `stage_event` from day one is cheap and is what
-makes the future drop-off chart possible; without it that history is lost.
+(terminal_negative) — 10 in total. (A "Saved" pre-apply stage was seeded in v1
+and retired in the v2 migration; see schema versioning.) Recording `stage_event`
+from day one is cheap and is what makes the future drop-off chart possible;
+without it that history is lost.
 
 ## DB layer rules (db.py) — correctness requirements
 
@@ -123,7 +125,7 @@ makes the future drop-off chart possible; without it that history is lost.
   `Path.home() / ".job-app-tracker"`, `mkdir(parents=True, exist_ok=True)`.
   sqlite3 does NOT create missing parent dirs and does NOT expand `~`; skipping
   this is a guaranteed first-run crash.
-- **Idempotent seed:** insert the 11 default stages only when the `stage` table is
+- **Idempotent seed:** insert the 10 default stages only when the `stage` table is
   empty, so they are not duplicated on later launches.
 - **Atomic stage change:** a single `set_stage(conn, application_id, stage_id)`
   updates `application.current_stage_id` AND inserts a `stage_event` in one
@@ -131,8 +133,10 @@ makes the future drop-off chart possible; without it that history is lost.
   application-update path must never write `current_stage_id` directly, or it
   drops the history that the drop-off chart depends on.
 - **Schema versioning:** track the schema with `PRAGMA user_version`. On launch,
-  db.py applies pending migrations in order (v1 = create the schema). Future field
-  adds (salary, deadline, ...) become one ordered migration step.
+  db.py applies pending migrations in order (v1 = create the schema; v2 = retire
+  the "Saved" stage, reassigning anything still on it to "Applied" before deleting
+  the row). Future field adds (salary, deadline, ...) become one ordered migration
+  step.
 - **Timestamps:** `created_at` / `updated_at` / `changed_at` are Python-side UTC
   ISO 8601 strings set in db.py (one source of truth, consistent over years).
 - Connections return `sqlite3.Row` (dict-like). No ORM.
@@ -147,9 +151,11 @@ detail; the detail view has a "← Applications" back affordance.
    role, status, date applied. Filter by stage, sort by column. Prominent
    "+ Add" action. Open a row (double-click or Enter) to its detail.
 2. **Application detail / editor**: a compact metadata header (company, role, job
-   URL, location, source, stage, date applied, notes) above a **dominant Q&A
-   section** — Q&A is the reuse engine and gets the space. "Open posting" opens
-   the URL in the browser. Q&A entries add / edit / delete.
+   URL, location, source, stage, date applied, notes) and a read-only **stage
+   history** list, above a **prominent Q&A section** — Q&A is the reuse engine and
+   gets the space. "Open posting" opens the URL in the browser. Q&A entries are
+   added via a small dialog and **edited in place** in the table cells; delete
+   too.
 3. **Global Q&A search**: one search box matching across every question and
    answer. Each result shows the question, answer, and source application, with a
    **Copy answer** button. This is the reuse engine.
@@ -172,13 +178,18 @@ detail; the detail view has a "← Applications" back affordance.
   - **Hierarchy:** the metadata is a compact header; the Q&A section takes the
     majority of the vertical space (reuse is goal #1).
   - **"Have applied" checkbox gates the `QDateEdit`.** Unchecked → `date_applied`
-    is stored NULL (QDateEdit can't represent "no date"; "Saved" apps have none).
+    is stored NULL (QDateEdit can't represent "no date"; an app you haven't
+    applied to yet has none).
   - Changing the stage routes through `set_stage` (not the blanket field save), so
     a `stage_event` is always written.
   - "Open posting" `QPushButton` calls `webbrowser.open`; **disabled when job_url
     is empty**, and prepends `https://` when the URL has no scheme.
-  - Q&A entries in a `QTableWidget`; add/edit opens a small `QDialog` (question
-    `QLineEdit` + answer `QPlainTextEdit`).
+  - Q&A entries in a `QTableWidget`; **adding** opens a small `QDialog` (question
+    `QLineEdit` + answer `QPlainTextEdit`), while **editing is in place** —
+    double-click / F2 (or the Edit button) edits the cell and the change is
+    written straight back to the row (no pop-up).
+  - A read-only **stage history** `QListWidget` under the form shows the recorded
+    `stage_event` rows (timestamp → stage) for this application.
 - Delete: a `QMessageBox` confirm before `delete_application` (it cascades and
   removes the Q&A, which is goal-#1 data).
 - Global search: a `QLineEdit` box, results in a `QTableWidget` (Question, Answer,
@@ -195,6 +206,8 @@ detail; the detail view has a "← Applications" back affordance.
 - **Search initial (no query):** hint, e.g. "Search every answer you've written.
   Try 'why this company'."
 - **Search no-results:** "No answers match '<term>'."
+- **Validation (detail):** required-field errors (company/role) show as an inline
+  message in the form, not as a modal pop-up; it clears on the next valid save.
 - **Action feedback** via `statusBar()`: "Saved", "Answer copied",
   "Stage → Interview". The Copy button also flips to "Copied ✓" for ~1.5s. Silent
   success reads as broken; every action confirms.
@@ -202,6 +215,10 @@ detail; the detail view has a "← Applications" back affordance.
   the Search tab focuses the search box; Esc returns from detail to the list.
 - **Window:** default ~1000x700, minimum 800x500, resizable; the Q&A list and the
   search results expand to fill, the metadata form stays compact.
+- **New-application defaults:** a new application starts on the "Applied" stage
+  with today's date checked (the common case is recording an app you've already
+  submitted). Clicking "+ Add question" on an unsaved application auto-saves it
+  first, so Q&A can be captured during initial entry.
 - **Visual language:** lean on Qt's native theme (follows OS light/dark). Do not
   invent a custom visual system for v1.
 
@@ -218,8 +235,11 @@ detail; the detail view has a "← Applications" back affordance.
 5. Changing a stage updates the list and writes a `stage_event` row (via
    `set_stage`); editing other fields never silently changes the stage.
 6. All data persists in `jobtracker.db`; closing and reopening loses nothing.
-7. The 11 default stages exist on first launch and are not duplicated later.
-8. A "Saved" application with no applied date round-trips a NULL date correctly.
+7. The 10 default stages exist on first launch and are not duplicated later; a
+   pre-v2 database with the retired "Saved" stage migrates cleanly (rows on it
+   move to "Applied").
+8. An application with no applied date (the "Applied" box unchecked) round-trips
+   a NULL date correctly.
 9. Deleting an application asks for confirmation; confirming removes its Q&A and
    stage history too.
 10. After sorting or filtering the list, opening a row opens the correct
@@ -240,7 +260,10 @@ of the single-injected-connection model) or a `tmp_path` file, so they never tou
 real data. Cover every db path:
 
 - schema init + `user_version` migration applies cleanly on a fresh DB
-- `seed_stages` is idempotent (running twice yields 11 stages, not 22)
+- `seed_stages` is idempotent (running twice yields 10 stages, not 20)
+- the v2 migration removes "Saved" and reassigns an app/`stage_event` on it to
+  "Applied" (on a hand-built v1 DB)
+- `list_stage_history` returns events joined with their stage names
 - application CRUD; creating one writes an initial `stage_event`
 - `delete_application` cascades (qa_entry + stage_event removed) — proves
   `PRAGMA foreign_keys = ON` is in effect
@@ -258,8 +281,9 @@ add.
 
 - **Backup / export**: "Export database…" copies `jobtracker.db` to a location you
   choose (data safety for the multi-year goal).
-- **stage_event recording** on every stage change (the chart that uses it is out
-  of scope for v1).
+- **stage_event recording** on every stage change, surfaced as a read-only
+  **stage history** list on the detail screen (the drop-off chart built on this
+  data is still out of scope for v1).
 
 ## Out of Scope (v1)
 
@@ -358,7 +382,7 @@ Empty / first run:
 │                [  + Add your first application  ]               │
 ```
 
-Application detail (Q&A dominant) and Q&A empty state:
+Application detail (metadata + stage history above Q&A) and Q&A empty state:
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -367,12 +391,16 @@ Application detail (Q&A dominant) and Q&A empty state:
 │ Company [Acme Corp      ]  Role [Backend Eng         ]          │
 │ Stage   [Interview ▾]      ☑ Applied [2026-05-30]              │
 │ URL     [https://…      ]  Source [LinkedIn ]   Notes […]      │
+│ Stage history                                                  │
+│   2026-05-30 09:12  →  Interview                               │
+│   2026-05-22 14:03  →  Applied                                 │
 ├────────────────────────────────────────────────────────────────┤
 │ Questions & Answers                            [ + Add question]│
 │ ────────────────────────────────────────────────────────────── │
-│ Why do you want to work here?                    [Edit] [Copy]  │
-│   "I'm drawn to Acme's work on…"                                │
-│ Describe a hard technical problem…               [Edit] [Copy]  │
+│ Why do you want to work here? │ I'm drawn to Acme's work on…    │
+│ Describe a hard technical pro… │ The mix of research and…       │
+│                                  (double-click a cell to edit)  │
+│                                       [Edit] [Copy answer] [Del]│
 └────────────────────────────────────────────────────────────────┘
 
 Q&A empty:  No questions saved yet.  [ + Add the first question ]

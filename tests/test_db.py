@@ -18,21 +18,66 @@ def test_foreign_keys_enabled(conn):
     assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 
-def test_seed_creates_eleven_stages(conn):
-    assert conn.execute("SELECT COUNT(*) FROM stage").fetchone()[0] == 11
+def test_seed_creates_ten_stages(conn):
+    assert conn.execute("SELECT COUNT(*) FROM stage").fetchone()[0] == 10
 
 
 def test_seed_is_idempotent(conn):
     db.seed_stages(conn)
     db.seed_stages(conn)
-    assert conn.execute("SELECT COUNT(*) FROM stage").fetchone()[0] == 11
+    assert conn.execute("SELECT COUNT(*) FROM stage").fetchone()[0] == 10
+
+
+def test_saved_stage_not_seeded(conn):
+    assert conn.execute("SELECT COUNT(*) FROM stage WHERE name='Saved'").fetchone()[0] == 0
 
 
 def test_list_stages_in_pipeline_order(conn):
     stages = db.list_stages(conn)
     orders = [s["sort_order"] for s in stages]
     assert orders == sorted(orders)
-    assert stages[0]["name"] == "Saved"
+    assert stages[0]["name"] == "Applied"
+
+
+def test_v2_migration_removes_saved_and_reassigns():
+    """A hand-built v1 DB (with 'Saved' and an app on it) migrates to v2: 'Saved'
+    is dropped and its application/stage_event are repointed to 'Applied'."""
+    import sqlite3
+
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.execute("PRAGMA foreign_keys = ON")
+    c.executescript(db._SCHEMA_V1)
+    c.execute("PRAGMA user_version = 1")
+    old_stages = [("Saved", 10, "active")] + db.DEFAULT_STAGES
+    c.executemany(
+        "INSERT INTO stage (name, sort_order, kind) VALUES (?, ?, ?)", old_stages
+    )
+    c.commit()
+    saved_id = c.execute("SELECT id FROM stage WHERE name='Saved'").fetchone()["id"]
+    applied_id = c.execute("SELECT id FROM stage WHERE name='Applied'").fetchone()["id"]
+    now = "2026-01-01T00:00:00+00:00"
+    app_id = c.execute(
+        "INSERT INTO application (company, role, current_stage_id, created_at, "
+        "updated_at) VALUES ('Acme', 'Eng', ?, ?, ?)", (saved_id, now, now)
+    ).lastrowid
+    c.execute(
+        "INSERT INTO stage_event (application_id, stage_id, changed_at) "
+        "VALUES (?, ?, ?)", (app_id, saved_id, now)
+    )
+    c.commit()
+
+    db.migrate(c)
+
+    assert c.execute("SELECT COUNT(*) FROM stage WHERE name='Saved'").fetchone()[0] == 0
+    assert c.execute(
+        "SELECT current_stage_id FROM application WHERE id=?", (app_id,)
+    ).fetchone()[0] == applied_id
+    assert c.execute(
+        "SELECT stage_id FROM stage_event WHERE application_id=?", (app_id,)
+    ).fetchone()[0] == applied_id
+    assert c.execute("PRAGMA user_version").fetchone()[0] == 2
+    c.close()
 
 
 # ── applications ──────────────────────────────────────────────────────────
@@ -71,6 +116,17 @@ def test_set_stage_updates_and_logs_atomically(conn):
     assert events[-1]["note"] == "passed screen"
 
 
+def test_stage_history_joins_names(conn):
+    applied = _stage_id(conn, "Applied")
+    interview = _stage_id(conn, "Interview")
+    app_id = db.add_application(conn, company="Acme", role="Eng", stage_id=applied)
+    db.set_stage(conn, app_id, interview)
+    hist = db.list_stage_history(conn, app_id)
+    assert len(hist) == 2
+    assert {h["stage_name"] for h in hist} == {"Applied", "Interview"}
+    assert hist[0]["stage_name"] == "Interview"   # newest first
+
+
 def test_delete_application_cascades(conn):
     sid = _stage_id(conn, "Applied")
     app_id = db.add_application(conn, company="Acme", role="Eng", stage_id=sid)
@@ -85,8 +141,8 @@ def test_delete_application_cascades(conn):
 
 
 def test_date_applied_null_roundtrip(conn):
-    saved = _stage_id(conn, "Saved")
-    app_id = db.add_application(conn, company="Acme", role="Eng", stage_id=saved,
+    applied = _stage_id(conn, "Applied")
+    app_id = db.add_application(conn, company="Acme", role="Eng", stage_id=applied,
                                date_applied=None)
     assert db.get_application(conn, app_id)["date_applied"] is None
 
