@@ -5,6 +5,7 @@ CLAUDE.local.md
 venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Build / packaging
 build/
