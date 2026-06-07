@@ -202,6 +202,10 @@ detail; the detail view has a "← Applications" back affordance.
   the Search tab focuses the search box; Esc returns from detail to the list.
 - **Window:** default ~1000x700, minimum 800x500, resizable; the Q&A list and the
   search results expand to fill, the metadata form stays compact.
+- **New-application defaults:** a new application starts on the "Applied" stage
+  with today's date checked (the common case is recording an app you've already
+  submitted, not a pre-apply "Saved" one). Clicking "+ Add question" on an unsaved
+  application auto-saves it first, so Q&A can be captured during initial entry.
 - **Visual language:** lean on Qt's native theme (follows OS light/dark). Do not
   invent a custom visual system for v1.
 

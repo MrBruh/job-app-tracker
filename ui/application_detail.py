@@ -175,9 +175,12 @@ class ApplicationDetailView(QWidget):
             self.location.clear()
             self.source.clear()
             self.notes.clear()
-            self.stage.setCurrentIndex(0)
+            # Default to "Applied" + today: the common case is tracking an
+            # application you've already submitted, not a pre-apply "Saved" one.
+            applied_idx = self.stage.findText("Applied")
+            self.stage.setCurrentIndex(applied_idx if applied_idx >= 0 else 0)
             self._loaded_stage_id = self.stage.currentData()
-            self.applied_check.setChecked(False)
+            self.applied_check.setChecked(True)
             self.date.setDate(QDate.currentDate())
             self.delete_btn.setEnabled(False)
         else:
@@ -201,7 +204,6 @@ class ApplicationDetailView(QWidget):
 
         self.date_enabled(self.applied_check.isChecked())
         self._update_open_btn()
-        self._set_qa_enabled()
         self._refresh_qa()
 
     def date_enabled(self, on):
@@ -233,7 +235,6 @@ class ApplicationDetailView(QWidget):
             )
             self._loaded_stage_id = stage_id
             self.delete_btn.setEnabled(True)
-            self._set_qa_enabled()
             self._refresh_qa()
         else:
             db.update_application(
@@ -274,12 +275,6 @@ class ApplicationDetailView(QWidget):
 
     # ── Q&A ──────────────────────────────────────────────────────────────
 
-    def _set_qa_enabled(self):
-        on = self.app_id is not None
-        for b in (self.add_qa_btn, self.first_qa_btn, self.edit_qa_btn,
-                  self.copy_qa_btn, self.del_qa_btn):
-            b.setEnabled(on)
-
     def _refresh_qa(self):
         if self.app_id is None:
             self.qa_stack.setCurrentIndex(1)
@@ -311,8 +306,12 @@ class ApplicationDetailView(QWidget):
 
     def _add_qa(self):
         if self.app_id is None:
-            self.status("Save the application first, then add Q&A")
-            return
+            # Auto-create the application from the form so Q&A can be added during
+            # initial entry. _save() warns and leaves app_id None if company/role
+            # are still blank.
+            self._save()
+            if self.app_id is None:
+                return
         dlg = QADialog(self)
         if dlg.exec() == QDialog.Accepted:
             q, a = dlg.values()
