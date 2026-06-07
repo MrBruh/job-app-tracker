@@ -293,7 +293,7 @@ add.
 - Recruiter / contact tracking.
 - Cloud sync, multi-device, accounts.
 - A canonical "answer bank" with versioning (per-app + search upgrades to this).
-- An in-app stage editor UI (start on the 11 seeded stages; editing is v1.1).
+- An in-app stage editor UI (start on the 10 seeded stages; editing is v1.1).
 - pytest-qt UI smoke tests (db.py unit tests only for v1).
 - Extra fields (salary, deadline, referral) — deferred; a one-line migration each.
 - A custom visual theme — v1 uses Qt's native look.
@@ -308,14 +308,16 @@ job-app-tracker/
     __init__.py
     main_window.py              # QMainWindow + QTabWidget (Applications | Search) + statusBar
     application_list.py         # list view + empty state
-    application_detail.py       # detail/editor (compact form + dominant Q&A) + Q&A dialog + back
+    application_detail.py       # detail/editor (compact form + inline Q&A) + stage history + back
     search_view.py              # global Q&A search + initial/no-results states
   tests/
     test_db.py                  # pytest unit tests for the db layer
+  docs/
+    SPEC.md                     # this file — source of truth
+    TESTING.md                  # manual testing guide
   README.md                     # how to run
   requirements.txt              # PySide6 (+ optional pyinstaller for packaging)
   requirements-dev.txt          # pytest
-  SPEC.md                       # this file
 ```
 
 Queries return `sqlite3.Row` (dict-like). No separate model classes for v1.

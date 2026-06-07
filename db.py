@@ -2,7 +2,7 @@
 
 All SQL lives here; the UI calls these functions and never writes SQL.
 
-Connection model (per SPEC.md): every function takes an open ``sqlite3.Connection``
+Connection model (per docs/SPEC.md): every function takes an open ``sqlite3.Connection``
 as its first argument. ``connect()`` configures it (foreign keys ON, Row factory),
 runs migrations, and seeds the default stages. The app holds one connection for its
 lifetime; tests pass a ``:memory:`` or ``tmp_path`` connection.

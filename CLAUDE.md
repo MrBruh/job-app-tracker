@@ -14,10 +14,10 @@ Job Application Tracker: a personal desktop app to record job-application Q&A
 (the main point is reusing and improving answers) and track the status of each
 application. Single user, local-only, built to keep records for years.
 
-**`SPEC.md` is the source of truth** for scope, data model, screens, and
+**`docs/SPEC.md` is the source of truth** for scope, data model, screens, and
 acceptance criteria. Read it before making changes.
 
-Status: greenfield / scaffolding. Code is built to match SPEC.md.
+Status: greenfield / scaffolding. Code is built to match docs/SPEC.md.
 
 ## Stack
 
@@ -27,7 +27,7 @@ Status: greenfield / scaffolding. Code is built to match SPEC.md.
 - stdlib **webbrowser** (open job links), **shutil** + Qt `QFileDialog` (DB export)
 - Dev-only optional: **PyInstaller** for packaging
 
-## Layout (per SPEC.md)
+## Layout (per docs/SPEC.md)
 
 ```
 main.py                  entry point: QApplication, open DB, show main window
@@ -35,8 +35,11 @@ db.py                    sqlite connection, schema, stage seed, all queries
 ui/
   main_window.py         QMainWindow + QStackedWidget navigation
   application_list.py     home list view
-  application_detail.py   detail/editor + Q&A section + Q&A edit dialog
+  application_detail.py   detail/editor + Q&A (inline edit) + stage history
   search_view.py         global Q&A search
+docs/
+  SPEC.md                source of truth (spec/plan)
+  TESTING.md             manual testing guide
 ```
 
 Data file (NOT in the repo): `~/.job-app-tracker/jobtracker.db`.
@@ -65,11 +68,11 @@ python main.py
 ## Database
 
 Tables: `stage`, `application`, `stage_event`, `qa_entry` (full schema in
-SPEC.md). Back up by copying the single `jobtracker.db` file before any schema
+docs/SPEC.md). Back up by copying the single `jobtracker.db` file before any schema
 change; that copy is the rollback.
 
 ## Out of scope (v1)
 
 Charts, reminders, document storage, contact tracking, cloud sync, answer-bank
-versioning, and an in-app stage editor. See SPEC.md "Out of Scope" before adding
+versioning, and an in-app stage editor. See docs/SPEC.md "Out of Scope" before adding
 any of these.

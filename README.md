@@ -4,7 +4,8 @@ A small personal desktop app to track job applications and reuse your answers to
 application questions. Single user, local-only. Built with Python + PySide6, data
 in a local SQLite file.
 
-See [SPEC.md](SPEC.md) for the full plan, data model, and design.
+See [docs/SPEC.md](docs/SPEC.md) for the full plan, data model, and design, and
+[docs/TESTING.md](docs/TESTING.md) for the manual testing guide.
 
 ## Requirements
 
