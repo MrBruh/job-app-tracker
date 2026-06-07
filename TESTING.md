@@ -5,6 +5,10 @@ what you should see. Together they cover every acceptance criterion in
 [SPEC.md](SPEC.md). The automated `db.py` tests (`pytest`) cover the data layer;
 this guide covers the UI and end-to-end behavior.
 
+> Checkboxes reset for items that changed in the latest round of fixes (default
+> stage, inline validation, inline Q&A editing, stage-history view, Saved removed).
+> Re-run those; items still marked `[y]` were unaffected.
+
 ## Run the app
 
 From the project folder, inside the venv:
@@ -24,9 +28,11 @@ the repo). To start from a clean slate, close the app and delete that file.
       prominent "+ Add your first application" button (not a blank grid).
 
 ## 2. Add an application
-- [n] Click **+ Add**. The detail form opens, defaulting to the **Applied** stage
-      with **today's date** checked. [defaults to saved, saved should not exist]
-- [n] Click **Save** with Company/Role blank → it warns they are required. [There should not be a pop-up, instead have some text somewhere in the map app indicating this]
+- [ ] Click **+ Add**. The detail form opens, defaulting to the **Applied** stage
+      with **today's date** checked.
+- [ ] Click **Save** with Company/Role blank → an **inline red message** appears
+      ("Company and role are required") — no pop-up dialog. It clears on a valid
+      save.
 - [y] Fill Company + Role → **Save** → the status bar shows "Saved".
 - [y] Click **← Applications** (or press **Esc**) → back to the list; your row is
       there.
@@ -35,10 +41,13 @@ the repo). To start from a clean slate, close the app and delete that file.
 - [y] Click **+ Add**, fill Company + Role, then click **+ Add question** right
       away (before a separate Save). It should save the application and open the
       Q&A dialog in one step (no disabled button).
-- [n] Add a question + answer → **Save** → it appears in the Q&A list, which takes
-      up most of the screen. [Takes up too much of the screen, Question can be a little shorter and Application should be a bit wider to make it more clear]
-- [n] Select it → **Edit** (or double-click) → change the answer → **Save** →
-      updated. [Editting should be done in place rather than in a new popup]
+- [ ] Add a question + answer → it appears in the Q&A table. The metadata form
+      and **Stage history** sit above it; the Q&A table no longer swallows the
+      whole screen.
+- [ ] **Edit in place:** double-click the **Question** or **Answer** cell (or
+      select a row and click **Edit** / press F2) → type → click away or press
+      Enter → the change is saved immediately (status "Question updated"), no
+      pop-up. Clearing the question reverts it (status "Question can't be empty").
 
 ## 4. Job posting link
 - [y] Set Job URL to `linkedin.com/jobs/123` (no `https://`), **Save**.
@@ -48,11 +57,13 @@ the repo). To start from a clean slate, close the app and delete that file.
 ## 5. Stage changes and history
 - [y] Add a second application. Change its **Stage** dropdown to "Interview",
       **Save** → status "Saved", and the list reflects the new stage.
-- [n] (Each stage change is recorded as history for the future drop-off chart.) [It probably is, but I don't have a way to check in-app]
+- [ ] The **Stage history** list under the form shows the change with a timestamp
+      (newest first), e.g. `2026-06-07 14:30 → Interview` above the initial
+      `→ Applied`.
 
 ## 6. List sort and filter
 - [y] Click the **Stage** column header → rows sort by pipeline order
-      (Saved -> Applied -> Interview -> ...), not alphabetically.
+      (Applied -> Online Assessment -> Interview -> ...), not alphabetically.
 - [y] Click the **Applied** column header → rows sort by date.
 - [y] Use the **Stage** filter dropdown → only matching applications show.
 - [y] After sorting/filtering, double-click a row → it opens the **correct**
@@ -66,8 +77,10 @@ the repo). To start from a clean slate, close the app and delete that file.
 - [y] Select a result → **Copy answer** → button flips to "Copied ✓"; paste
       elsewhere to confirm the clipboard.
 - [y] Type gibberish → "No answers match '...'."
-- [n] Edit an answer in the detail view, return to Search, search for it → the
-      result reflects the edit (no stale results). [There is no detail view]
+- [ ] Open an application, edit an answer in place (Q&A cell), then return to
+      **Search** and search for it → the result reflects the edit (no stale
+      results). Search has no detail view of its own — editing happens in the
+      application's detail screen.
 
 ## 8. Delete
 - [y] Open an application → **Delete** → a confirmation dialog appears.
@@ -79,8 +92,9 @@ the repo). To start from a clean slate, close the app and delete that file.
 
 ## 10. Persistence
 - [y] Close the app completely and reopen → all your data is still there.
-- [y] The stage dropdown lists the 11 default stages (Saved through
-      Ghosted/No-response).
+- [ ] The stage dropdown lists the **10** default stages (Applied through
+      Ghosted/No-response) — "Saved" is gone. If your DB predates this change, any
+      application that was on "Saved" now shows as "Applied".
 
 ---
 
