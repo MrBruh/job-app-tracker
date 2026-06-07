@@ -1,0 +1,15 @@
+# Local, untracked CLAUDE guidance
+CLAUDE.local.md
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Build / packaging
+build/
+dist/
+*.spec
+
+# Local database
+*.db
