@@ -125,7 +125,7 @@ without it that history is lost.
   `Path.home() / ".job-app-tracker"`, `mkdir(parents=True, exist_ok=True)`.
   sqlite3 does NOT create missing parent dirs and does NOT expand `~`; skipping
   this is a guaranteed first-run crash.
-- **Idempotent seed:** insert the 11 default stages only when the `stage` table is
+- **Idempotent seed:** insert the 10 default stages only when the `stage` table is
   empty, so they are not duplicated on later launches.
 - **Atomic stage change:** a single `set_stage(conn, application_id, stage_id)`
   updates `application.current_stage_id` AND inserts a `stage_event` in one
@@ -178,7 +178,8 @@ detail; the detail view has a "← Applications" back affordance.
   - **Hierarchy:** the metadata is a compact header; the Q&A section takes the
     majority of the vertical space (reuse is goal #1).
   - **"Have applied" checkbox gates the `QDateEdit`.** Unchecked → `date_applied`
-    is stored NULL (QDateEdit can't represent "no date"; "Saved" apps have none).
+    is stored NULL (QDateEdit can't represent "no date"; an app you haven't
+    applied to yet has none).
   - Changing the stage routes through `set_stage` (not the blanket field save), so
     a `stage_event` is always written.
   - "Open posting" `QPushButton` calls `webbrowser.open`; **disabled when job_url
