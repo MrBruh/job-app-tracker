@@ -4,8 +4,8 @@ A personal desktop app to track job applications: your **answers to application
 questions** (the main point: reuse and improve them) plus the **status** of each
 application. Single user, local-only, built to keep records for years.
 
-Status: PLAN LOCKED — eng-reviewed + outside-voice challenged 2026-06-07. Ready to
-build.
+Status: PLAN LOCKED — eng-reviewed, outside-voice challenged, design-reviewed
+2026-06-07. Ready to build.
 
 ---
 
@@ -139,30 +139,38 @@ makes the future drop-off chart possible; without it that history is lost.
 
 ## Screens
 
+Persistent navigation: a top `QTabWidget` with two areas, **Applications** and
+**Search**. The Applications tab swaps between the list and a single application's
+detail; the detail view has a "← Applications" back affordance.
+
 1. **Applications list** (home): every application as a row showing company,
-   role, status, date applied. Filter by stage, sort by date. "Add application"
-   button. Click a row to open detail.
-2. **Application detail / editor**: fields for company, role, job URL, location,
-   source, stage (dropdown), date applied, notes. An "Open posting" button opens
-   the job URL in the browser. Below: the Q&A entries for this application, each
-   add / edit / delete.
-3. **Global Q&A search**: one search box that matches across every question and
-   answer you have entered. Each result shows the question, the answer, and which
-   application it came from, with a **Copy answer** button. This is the reuse
-   engine.
+   role, status, date applied. Filter by stage, sort by column. Prominent
+   "+ Add" action. Open a row (double-click or Enter) to its detail.
+2. **Application detail / editor**: a compact metadata header (company, role, job
+   URL, location, source, stage, date applied, notes) above a **dominant Q&A
+   section** — Q&A is the reuse engine and gets the space. "Open posting" opens
+   the URL in the browser. Q&A entries add / edit / delete.
+3. **Global Q&A search**: one search box matching across every question and
+   answer. Each result shows the question, answer, and source application, with a
+   **Copy answer** button. This is the reuse engine.
 
 ## UI building blocks (PySide6)
 
-- App shell: `QMainWindow` with a `QStackedWidget` to switch between the list,
-  detail, and search views (a toolbar or top buttons switch views).
+- App shell: `QMainWindow` with a top `QTabWidget` for **Applications** and
+  **Search** (persistent nav — always answers "where am I"). The Applications tab
+  holds a `QStackedWidget` (list <-> detail); the detail page has a
+  "← Applications" back button. `QMainWindow.statusBar()` shows transient
+  confirmations.
 - Applications list: `QTableWidget` (columns: Company, Role, Stage, Date
-  applied). A `QComboBox` filters by stage; double-click opens detail.
+  applied). A `QComboBox` filters by stage; double-click or Enter opens detail.
   - **Store the application id on each row** via `item.setData(Qt.UserRole, id)`;
     never map visible row index to id (sort/filter reorder and hide rows).
   - The Stage column sorts by pipeline order (`stage.sort_order`), not
     alphabetically — sort on a hidden sort-key column or a custom sort role.
 - Detail / editor: `QLineEdit` (company, role, job URL, location, source),
   `QComboBox` (stage), `QDateEdit` (date applied), `QPlainTextEdit` (notes).
+  - **Hierarchy:** the metadata is a compact header; the Q&A section takes the
+    majority of the vertical space (reuse is goal #1).
   - **"Have applied" checkbox gates the `QDateEdit`.** Unchecked → `date_applied`
     is stored NULL (QDateEdit can't represent "no date"; "Saved" apps have none).
   - Changing the stage routes through `set_stage` (not the blanket field save), so
@@ -177,6 +185,25 @@ makes the future drop-off chart possible; without it that history is lost.
   Company / Role). "Copy answer" uses `QApplication.clipboard().setText(...)`.
   **Re-query when the view is shown** so edits made elsewhere aren't stale.
 - Stage badges: color the stage cell (or a small `QLabel`) by `stage.kind`.
+
+## States, feedback & keyboard
+
+- **Empty / first-run (list):** with no applications, replace the table with
+  "No applications yet — track your first one and start reusing answers." and a
+  prominent "+ Add your first application" button. Never show a blank grid.
+- **Q&A empty (detail):** "No questions saved yet." + "+ Add the first question".
+- **Search initial (no query):** hint, e.g. "Search every answer you've written.
+  Try 'why this company'."
+- **Search no-results:** "No answers match '<term>'."
+- **Action feedback** via `statusBar()`: "Saved", "Answer copied",
+  "Stage → Interview". The Copy button also flips to "Copied ✓" for ~1.5s. Silent
+  success reads as broken; every action confirms.
+- **Keyboard:** Enter (or double-click) opens the selected list row; switching to
+  the Search tab focuses the search box; Esc returns from detail to the list.
+- **Window:** default ~1000x700, minimum 800x500, resizable; the Q&A list and the
+  search results expand to fill, the metadata form stays compact.
+- **Visual language:** lean on Qt's native theme (follows OS light/dark). Do not
+  invent a custom visual system for v1.
 
 ## Acceptance Criteria (MVP)
 
@@ -198,6 +225,13 @@ makes the future drop-off chart possible; without it that history is lost.
 10. After sorting or filtering the list, opening a row opens the correct
     application (id-based, not row-based).
 11. `db.py` unit tests pass (`pytest`), covering the paths in the Testing section.
+12. On first launch with no data, the list shows a friendly empty state with a
+    prominent "Add your first application" action (not a blank grid). Search and
+    the Q&A section show their own empty / no-results states.
+13. Copying an answer, saving, and changing a stage each show a visible
+    confirmation (status bar and/or button state); no action succeeds silently.
+14. I can move list → detail → back and reach Search via persistent tabs without
+    losing my place.
 
 ## Testing
 
@@ -238,6 +272,7 @@ add.
 - An in-app stage editor UI (start on the 11 seeded stages; editing is v1.1).
 - pytest-qt UI smoke tests (db.py unit tests only for v1).
 - Extra fields (salary, deadline, referral) — deferred; a one-line migration each.
+- A custom visual theme — v1 uses Qt's native look.
 
 ## Project Structure
 
@@ -247,10 +282,10 @@ job-app-tracker/
   db.py                         # connect(path), migrate (user_version), seed, all queries
   ui/
     __init__.py
-    main_window.py              # QMainWindow + QStackedWidget navigation
-    application_list.py         # list view (home)
-    application_detail.py       # detail/editor + Q&A section + Q&A edit dialog
-    search_view.py              # global Q&A search
+    main_window.py              # QMainWindow + QTabWidget (Applications | Search) + statusBar
+    application_list.py         # list view + empty state
+    application_detail.py       # detail/editor (compact form + dominant Q&A) + Q&A dialog + back
+    search_view.py              # global Q&A search + initial/no-results states
   tests/
     test_db.py                  # pytest unit tests for the db layer
   README.md                     # how to run
@@ -275,11 +310,11 @@ Queries return `sqlite3.Row` (dict-like). No separate model classes for v1.
 ## Effort (rough build time)
 
 DB layer (connect + migrations + seed + set_stage) ~1.25h · db.py pytest suite
-~1h · QMainWindow + navigation ~0.75h · List view (id-mapping, stage-order sort,
-filter) ~1.5h · Detail/editor (date checkbox, stage routing, Q&A dialog) ~2h ·
-Global search + clipboard + refresh ~1h · Export + delete-confirm + polish ~1h.
-**Total ~10-12h of build** (revised up from 6h after the outside voice flagged
-first-time PySide6 wiring cost).
+~1h · QMainWindow + tabs + nav ~1h · List view (id-mapping, stage-order sort,
+filter, empty state) ~1.75h · Detail/editor (Q&A-dominant layout, date checkbox,
+stage routing, Q&A dialog, empty state) ~2.25h · Global search (states + clipboard
++ refresh) ~1.25h · Export + delete-confirm + statusBar feedback + polish ~1.25h.
+**Total ~10-12h of build.**
 
 ## Rollback
 
@@ -295,6 +330,72 @@ belt-and-suspenders restore point.
 - Schema migrations: **`user_version` ladder** from v1.
 - Tests: **db.py pytest suite** (UI manual for v1).
 - Interpreter: **`py -3.12`**.
+- Navigation: **`QTabWidget` (Applications | Search)** + back affordance in detail.
+- Detail hierarchy: **Q&A dominates** the compact metadata header.
+- Feedback: **statusBar + "Copied ✓"**; every action confirms.
+
+## Wireframes (appendix)
+
+Applications list (with data) and its empty / first-run state:
+
+```
+┌─ Job Application Tracker ──────────────────────────────────────┐
+│ [ Applications ] [ Search ]                          [ + Add ]  │
+├────────────────────────────────────────────────────────────────┤
+│ Stage: [ All ▾ ]                                Sort: [ Date ▾ ]│
+│ Company        Role             Stage         Applied           │
+│ ────────────────────────────────────────────────────────────── │
+│ Acme Corp      Backend Eng      ● Interview    2026-05-30       │
+│ Globex         Data Scientist   ● Applied      2026-06-01       │
+│ Initech        ML Engineer      ○ Rejected     2026-05-20       │
+├────────────────────────────────────────────────────────────────┤
+│ 12 applications                                       (status)  │
+└────────────────────────────────────────────────────────────────┘
+
+Empty / first run:
+│                     No applications yet                         │
+│           Track your first one and start reusing answers.       │
+│                [  + Add your first application  ]               │
+```
+
+Application detail (Q&A dominant) and Q&A empty state:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ ← Applications               [ Open posting ]  [ Save ] [Delete]│
+├────────────────────────────────────────────────────────────────┤
+│ Company [Acme Corp      ]  Role [Backend Eng         ]          │
+│ Stage   [Interview ▾]      ☑ Applied [2026-05-30]              │
+│ URL     [https://…      ]  Source [LinkedIn ]   Notes […]      │
+├────────────────────────────────────────────────────────────────┤
+│ Questions & Answers                            [ + Add question]│
+│ ────────────────────────────────────────────────────────────── │
+│ Why do you want to work here?                    [Edit] [Copy]  │
+│   "I'm drawn to Acme's work on…"                                │
+│ Describe a hard technical problem…               [Edit] [Copy]  │
+└────────────────────────────────────────────────────────────────┘
+
+Q&A empty:  No questions saved yet.  [ + Add the first question ]
+```
+
+Global Q&A search (results, initial hint, no-results):
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ [ Applications ] [ Search ]                                     │
+│ 🔍 [ why this company                                        ]  │
+│ ────────────────────────────────────────────────────────────── │
+│ Why do you want to work here?                          [Copy]   │
+│   "I'm drawn to Acme's work on…"                                │
+│   Acme Corp · Backend Eng                                       │
+│ What attracts you to this role?                        [Copy]   │
+│   "The mix of research and…"                                    │
+│   Globex · Data Scientist                                       │
+└────────────────────────────────────────────────────────────────┘
+
+Initial (no query):  Search every answer you've written. Try "why this company".
+No results:          No answers match "xyzzy".
+```
 
 ## GSTACK REVIEW REPORT
 
@@ -303,7 +404,7 @@ belt-and-suspenders restore point.
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | not run |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | clean | 6 findings + 1 env blocker; all resolved |
 | Outside Voice | Claude subagent | Independent challenge | 1 | issues_found | 3 P1 + 6 P2/P3; all folded in or decided |
-| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | not run |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | clean | 5/10 → 8.5/10; 9 UX fixes folded in |
 
 - **Eng review resolved:** FK pragma + idempotent seed + atomic `set_stage` (D1);
   db.py pytest suite (D2); `user_version` migration ladder (D3, kept at D7);
@@ -312,7 +413,9 @@ belt-and-suspenders restore point.
   in-memory test conflict (D5); QDateEdit null-date checkbox, stage-change
   routing, Qt.UserRole id mapping, first-run mkdir, delete-confirm, URL guard,
   UTC timestamps, search refresh, effort revised to 10-12h (D6); migration ladder
-  kept after cross-model tension (D7). Strategic spreadsheet challenge
-  acknowledged and accepted.
+  kept after cross-model tension (D7).
+- **Design review resolved:** QTabWidget nav + back affordance, Q&A-dominant
+  detail hierarchy, empty/first-run + search states, statusBar/Copy feedback,
+  keyboard affordances, window sizing; wireframes added as an appendix (D8/D9).
 - **UNRESOLVED:** none.
-- **VERDICT:** ENG CLEARED + outside-voice challenged — ready to implement.
+- **VERDICT:** ENG + DESIGN CLEARED, outside-voice challenged — ready to implement.
