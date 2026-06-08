@@ -39,6 +39,7 @@ class QADialog(QDialog):
         layout.addWidget(self.question)
         layout.addWidget(QLabel("Answer"))
         self.answer = QPlainTextEdit(answer)
+        self.answer.setTabChangesFocus(True)   # Tab/Shift+Tab move focus, not insert a tab
         layout.addWidget(self.answer, 1)
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self._accept)
@@ -108,6 +109,7 @@ class ApplicationDetailView(QWidget):
         self.source.setPlaceholderText("LinkedIn, referral, company site…")
         self.notes = QPlainTextEdit()
         self.notes.setFixedHeight(54)
+        self.notes.setTabChangesFocus(True)   # Tab/Shift+Tab move focus, not insert a tab
 
         date_row = QHBoxLayout()
         self.applied_check = QCheckBox("Applied")
